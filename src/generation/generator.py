@@ -12,7 +12,7 @@ sys.path.insert(0, ".")
 
 from openai import OpenAI
 from dotenv import load_dotenv
-
+from langsmith import traceable 
 load_dotenv()
 
 LLM_MODEL   = "gpt-4o-mini"
