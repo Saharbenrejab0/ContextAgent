@@ -10,10 +10,12 @@ import sys
 import re
 sys.path.insert(0, ".")
 
-from openai import OpenAI
+
 from dotenv import load_dotenv
-from langsmith import traceable 
 load_dotenv()
+
+from langsmith import traceable
+from openai import OpenAI
 
 LLM_MODEL   = "gpt-4o-mini"
 MAX_TOKENS  = 1000

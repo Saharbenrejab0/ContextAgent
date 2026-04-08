@@ -18,9 +18,10 @@ sys.path.insert(0, ".")
 from src.ingestion.embedder   import embed_query
 from src.storage.vector_store import query_collection
 from dotenv import load_dotenv
-from langsmith import traceable
 
 load_dotenv()
+
+from langsmith import traceable
 
 TOP_K        = int(os.getenv("TOP_K_RESULTS", 5))
 MAX_DISTANCE = 0.85
