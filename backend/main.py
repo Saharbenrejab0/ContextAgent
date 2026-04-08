@@ -3,11 +3,12 @@ ContextAgent — FastAPI Backend
 Exposes the RAG pipeline as a REST API consumed by the React frontend.
 """
 
-import sys, time, uuid
+import sys, time, uuid, json, os
 from typing import Optional
 from collections import defaultdict
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 sys.path.insert(0, ".")
@@ -20,7 +21,7 @@ from src.storage.vector_store import (
     save_chunks, reset_collection, get_collection_count
 )
 
-app = FastAPI(title="ContextAgent API", version="1.0.0")
+app = FastAPI(title="ContextAgent API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,7 +30,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── In-memory session store ─────────────────────────────────
+# ── In-memory session store ──────────────────────────────────────
 sessions: dict[str, Orchestrator] = {}
 session_stats: dict[str, dict]    = defaultdict(lambda: {
     "total_tokens": 0,
@@ -40,13 +41,13 @@ session_stats: dict[str, dict]    = defaultdict(lambda: {
     "token_history":[],
 })
 
-# ── Schemas ─────────────────────────────────────────────────
+# ── Schemas ──────────────────────────────────────────────────────
 class ChatRequest(BaseModel):
-    session_id: str
-    question:   str
-    top_k:      int   = 5
-    temperature:float = 0.1
-    memory_window:int = 6
+    session_id:    str
+    question:      str
+    top_k:         int   = 5
+    temperature:   float = 0.1
+    memory_window: int   = 6
 
 class ResetRequest(BaseModel):
     session_id: str
@@ -54,7 +55,7 @@ class ResetRequest(BaseModel):
 class EvalRequest(BaseModel):
     questions: list[str]
 
-# ── Helpers ─────────────────────────────────────────────────
+# ── Helpers ──────────────────────────────────────────────────────
 def get_or_create_session(session_id: str, top_k: int = 5) -> Orchestrator:
     if session_id not in sessions:
         sessions[session_id] = Orchestrator(top_k=top_k, verbose=False)
@@ -63,14 +64,16 @@ def get_or_create_session(session_id: str, top_k: int = 5) -> Orchestrator:
 def compute_cost(tokens: int) -> float:
     return round((tokens / 1_000_000) * 0.15, 6)
 
-# ── Routes ──────────────────────────────────────────────────
+# ── Routes ───────────────────────────────────────────────────────
 
 @app.get("/api/health")
 def health():
     return {"status": "ok", "chunks": get_collection_count()}
 
+
 @app.post("/api/chat")
 def chat(req: ChatRequest):
+    """Standard (non-streaming) chat endpoint."""
     if get_collection_count() == 0:
         raise HTTPException(400, "No documents ingested. Run ingestion first.")
 
@@ -103,9 +106,60 @@ def chat(req: ChatRequest):
         "cost":     cost,
     }
 
+
+@app.post("/api/chat/stream")
+async def chat_stream(req: ChatRequest):
+    """
+    Streaming chat endpoint using Server-Sent Events (SSE).
+    Yields tokens as they arrive from OpenAI.
+    The last event is a JSON metadata object prefixed with [DONE].
+    """
+    if get_collection_count() == 0:
+        raise HTTPException(400, "No documents ingested.")
+
+    from src.retrieval.retriever  import retrieve, format_context
+    from src.generation.prompt    import build_messages, build_standalone_question
+    from src.generation.generator import generate_stream
+
+    agent    = get_or_create_session(req.session_id, req.top_k)
+    agent.buffer.window = req.memory_window
+    history  = agent.buffer.get()
+    search_q = build_standalone_question(req.question, history)
+    chunks   = retrieve(search_q, top_k=req.top_k)
+    context  = format_context(chunks)
+    messages = build_messages(
+        question = req.question,
+        context  = context,
+        history  = history if history else None,
+    )
+
+    def event_stream():
+        full = ""
+        for token in generate_stream(messages):
+            if token.startswith("[DONE]"):
+                meta   = json.loads(token[6:])
+                tokens = meta["tokens"]["total"]
+                cost   = compute_cost(tokens)
+                agent.buffer.add(req.question, full)
+                stats = session_stats[req.session_id]
+                stats["total_tokens"] += tokens
+                stats["total_cost"]   += cost
+                stats["turns"]        += 1
+                stats["token_history"].append(tokens)
+                for c in chunks:
+                    stats["distances"].append(c["distance"])
+                meta["chunks"] = chunks
+                meta["cost"]   = cost
+                yield f"data: [DONE]{json.dumps(meta)}\n\n"
+            else:
+                full += token
+                yield f"data: {json.dumps(token)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
 @app.get("/api/documents")
 def list_documents():
-    import os
     from pathlib import Path
     docs_path = Path("docs/")
     supported = {".pdf", ".txt", ".md"}
@@ -114,12 +168,13 @@ def list_documents():
         for f in sorted(docs_path.iterdir()):
             if f.suffix.lower() in supported:
                 files.append({
-                    "name":      f.name,
-                    "type":      f.suffix.lower().replace(".", ""),
-                    "size_kb":   round(f.stat().st_size / 1024, 1),
-                    "path":      str(f),
+                    "name":    f.name,
+                    "type":    f.suffix.lower().replace(".", ""),
+                    "size_kb": round(f.stat().st_size / 1024, 1),
+                    "path":    str(f),
                 })
     return {"documents": files, "total_chunks": get_collection_count()}
+
 
 @app.post("/api/ingest")
 async def ingest_document(file: UploadFile = File(...)):
@@ -144,13 +199,14 @@ async def ingest_document(file: UploadFile = File(...)):
         embedded = embed_chunks(chunks)
         save_chunks(embedded)
         return {
-            "success":    True,
-            "filename":   file.filename,
-            "chunks":     len(chunks),
-            "total":      get_collection_count(),
+            "success":  True,
+            "filename": file.filename,
+            "chunks":   len(chunks),
+            "total":    get_collection_count(),
         }
     except Exception as e:
         raise HTTPException(500, str(e))
+
 
 @app.post("/api/reingest")
 def reingest_all():
@@ -164,6 +220,7 @@ def reingest_all():
         "documents": len(docs),
         "chunks":    len(chunks),
     }
+
 
 @app.post("/api/reset")
 def reset_chat(req: ResetRequest):
@@ -179,28 +236,30 @@ def reset_chat(req: ResetRequest):
     }
     return {"success": True}
 
+
 @app.get("/api/stats/{session_id}")
 def get_stats(session_id: str):
-    s = session_stats[session_id]
+    try:
+        total_chunks = get_collection_count()
+    except Exception:
+        total_chunks = 0
+    s    = session_stats[session_id]
     lats = s["latencies"]
     dsts = s["distances"]
     return {
-        "total_tokens":   s["total_tokens"],
-        "total_cost":     round(s["total_cost"], 6),
-        "turns":          s["turns"],
-        "avg_latency":    round(sum(lats)/len(lats), 2) if lats else 0,
-        "avg_distance":   round(sum(dsts)/len(dsts), 4) if dsts else 0,
-        "token_history":  s["token_history"],
-        "distance_hist":  dsts,
-        "total_chunks":   get_collection_count(),
+        "total_tokens":  s["total_tokens"],
+        "total_cost":    round(s["total_cost"], 6),
+        "turns":         s["turns"],
+        "avg_latency":   round(sum(lats)/len(lats), 2) if lats else 0,
+        "avg_distance":  round(sum(dsts)/len(dsts), 4) if dsts else 0,
+        "token_history": s["token_history"],
+        "distance_hist": dsts,
+        "total_chunks":  total_chunks,
     }
+
 
 @app.post("/api/evaluate")
 def evaluate(req: EvalRequest):
-    """
-    Run a quick evaluation on a list of questions.
-    Returns per-question metrics: chunks found, avg distance, answer length.
-    """
     from src.retrieval.retriever import retrieve
     results = []
     for q in req.questions:
@@ -210,8 +269,10 @@ def evaluate(req: EvalRequest):
         results.append({
             "question":     q,
             "chunks_found": len(chunks),
-            "avg_distance": round(sum(c["distance"] for c in chunks)/len(chunks), 4) if chunks else 1.0,
-            "sources":      list(set(c["source"] for c in chunks)),
-            "latency":      lat,
+            "avg_distance": round(
+                sum(c["distance"] for c in chunks) / len(chunks), 4
+            ) if chunks else 1.0,
+            "sources":  list(set(c["source"] for c in chunks)),
+            "latency":  lat,
         })
     return {"results": results}

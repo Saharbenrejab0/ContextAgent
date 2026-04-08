@@ -6,7 +6,13 @@ This is the single entry point for the chat interface.
 """
 
 import sys
+import os
 sys.path.insert(0, ".")
+
+# LangSmith tracing — activate by setting LANGCHAIN_TRACING_V2=true in .env
+os.environ.setdefault("LANGCHAIN_TRACING_V2",  os.getenv("LANGCHAIN_TRACING_V2", "false"))
+os.environ.setdefault("LANGCHAIN_API_KEY",      os.getenv("LANGCHAIN_API_KEY", ""))
+os.environ.setdefault("LANGCHAIN_PROJECT",      os.getenv("LANGCHAIN_PROJECT", "contextagent"))
 
 from src.retrieval.retriever  import retrieve, format_context
 from src.generation.prompt    import build_messages, build_standalone_question

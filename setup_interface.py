@@ -124,6 +124,50 @@ def chat(req: ChatRequest):
         "cost":     cost,
     }
 
+
+@app.post("/api/chat/stream")
+async def chat_stream(req: ChatRequest):
+    """
+    Streaming chat endpoint using Server-Sent Events (SSE).
+    Yields tokens as they arrive from OpenAI.
+    The last event is a JSON metadata object prefixed with [DONE].
+    """
+    from fastapi.responses import StreamingResponse
+    from src.retrieval.retriever  import retrieve, format_context
+    from src.generation.prompt    import build_messages, build_standalone_question
+    from src.generation.generator import generate_stream
+
+    if get_collection_count() == 0:
+        raise HTTPException(400, "No documents ingested.")
+
+    agent   = get_or_create_session(req.session_id, req.top_k)
+    history = agent.buffer.get()
+    search_q= build_standalone_question(req.question, history)
+    chunks  = retrieve(search_q, top_k=req.top_k)
+    context = format_context(chunks)
+    messages= build_messages(question=req.question, context=context, history=history or None)
+
+    def event_stream():
+        full = ""
+        for token in generate_stream(messages):
+            if token.startswith("[DONE]"):
+                import json
+                meta = json.loads(token[6:])
+                agent.buffer.add(req.question, full)
+                tokens = meta["tokens"]["total"]
+                stats  = session_stats[req.session_id]
+                stats["total_tokens"] += tokens
+                stats["turns"]        += 1
+                for c in chunks:
+                    stats["distances"].append(c["distance"])
+                stats["token_history"].append(tokens)
+                yield f"data: {token}\n\n"
+            else:
+                full += token
+                yield f"data: {token}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
 @app.get("/api/documents")
 def list_documents():
     import os
@@ -665,23 +709,56 @@ export default function Chat({ ctx }) {
     setInput(\'\')
     setMessages(m => [...m, { role: \'user\', content: q }])
     setLoading(true)
+
     try {
-      const { data } = await axios.post(\'/api/chat\', {
-        session_id:    ctx.sessionId,
-        question:      q,
-        top_k:         ctx.settings.topK,
-        temperature:   ctx.settings.temperature,
-        memory_window: ctx.settings.memoryWindow,
+      const res = await fetch(\'/api/chat/stream\', {
+        method: \'POST\',
+        headers: { \'Content-Type\': \'application/json\' },
+        body: JSON.stringify({
+          session_id:    ctx.sessionId,
+          question:      q,
+          top_k:         ctx.settings.topK,
+          temperature:   ctx.settings.temperature,
+          memory_window: ctx.settings.memoryWindow,
+        }),
       })
-      setChunks(data.chunks || [])
-      setMessages(m => [...m, {
-        role: \'assistant\', content: data.answer,
-        sources: data.sources, tokens: data.tokens.total,
-        latency: data.latency, cost: data.cost,
-      }])
+
+      const reader  = res.body.getReader()
+      const decoder = new TextDecoder()
+      let   buffer  = \'\'
+      let   msgIdx  = -1
+
+      setMessages(m => {
+        msgIdx = m.length
+        return [...m, { role: \'assistant\', content: \'\', sources: [], tokens: 0 }]
+      })
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split(\'\n\')
+        buffer = lines.pop()
+
+        for (const line of lines) {
+          if (!line.startsWith(\'data: \')) continue
+          const data = line.slice(6)
+          if (data.startsWith(\'[DONE]\')) {
+            const meta = JSON.parse(data.slice(6))
+            setMessages(m => m.map((msg, i) =>
+              i === msgIdx ? { ...msg, sources: meta.sources, tokens: meta.tokens.total } : msg
+            ))
+          } else {
+            setMessages(m => m.map((msg, i) =>
+              i === msgIdx ? { ...msg, content: msg.content + data } : msg
+            ))
+          }
+        }
+      }
     } catch(e) {
-      setMessages(m => [...m, { role: \'error\', content: e.response?.data?.detail || \'API error\' }])
+      setMessages(m => [...m, { role: \'error\', content: \'Stream error: \' + e.message }])
     }
+
     setLoading(false)
   }
 

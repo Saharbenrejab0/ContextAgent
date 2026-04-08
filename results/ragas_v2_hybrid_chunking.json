@@ -1,0 +1,133 @@
+{
+  "timestamp": "2026-04-08T17:15:32.634047",
+  "method": "LLM-as-judge (gpt-4o-mini)",
+  "num_questions": 15,
+  "total_tokens": 17028,
+  "faithfulness": 0.5933,
+  "answer_relevancy": 0.6867,
+  "context_precision": 0.5933,
+  "context_recall": 0.56,
+  "avg_score": 0.6083,
+  "per_question": [
+    {
+      "question": "What is a Python class?",
+      "answer": "A Python class is a mechanism that adds classes with a minimum of new syntax and semantics, combining features from C++ and Modula-3. Python classes provide standard Object Oriented Programming featur",
+      "faithfulness": 0.8,
+      "answer_relevancy": 0.8,
+      "context_precision": 0.9,
+      "context_recall": 0.7
+    },
+    {
+      "question": "How do you define a class in Python?",
+      "answer": "The simplest form of class definition in Python looks like this:\n\n```python\nclass ClassName:\n    <statement-1>\n    .\n    .\n    .\n    <statement-N>\n```\n\nClass definitions must be executed before they h",
+      "faithfulness": 0.5,
+      "answer_relevancy": 0.5,
+      "context_precision": 0.5,
+      "context_recall": 0.5
+    },
+    {
+      "question": "What is inheritance in Python?",
+      "answer": "Inheritance in Python is a feature of object-oriented programming that allows a class (derived class) to inherit attributes and methods from another class (base class). The syntax for defining a deriv",
+      "faithfulness": 1.0,
+      "answer_relevancy": 1.0,
+      "context_precision": 1.0,
+      "context_recall": 1.0
+    },
+    {
+      "question": "How does error handling work in Python?",
+      "answer": "Error handling in Python is primarily done using the \"try\" ... \"except\" statement. Here's how it works:\n\n1. **Try Block**: Code that may cause an exception is placed inside the \"try\" block. If no exce",
+      "faithfulness": 1.0,
+      "answer_relevancy": 1.0,
+      "context_precision": 1.0,
+      "context_recall": 1.0
+    },
+    {
+      "question": "What is the difference between a syntax error and an exception?",
+      "answer": "A syntax error, also known as a parsing error, occurs when the code is not written correctly according to the rules of the programming language, preventing it from being parsed. An example is when a s",
+      "faithfulness": 1.0,
+      "answer_relevancy": 1.0,
+      "context_precision": 1.0,
+      "context_recall": 1.0
+    },
+    {
+      "question": "How do Python modules work?",
+      "answer": "Python modules are files containing Python definitions and statements, with the file name serving as the module name and the suffix \".py\" appended. When a module is imported, its code is executed, and",
+      "faithfulness": 0.8,
+      "answer_relevancy": 1.0,
+      "context_precision": 0.9,
+      "context_recall": 0.7
+    },
+    {
+      "question": "What is a Python package?",
+      "answer": "A Python package is a way of structuring Python's module namespace using \"dotted module names.\" For example, the module name \"A.B\" designates a submodule named \"B\" in a package named \"A.\" Packages hel",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "context_precision": 0.0,
+      "context_recall": 0.0
+    },
+    {
+      "question": "What are Python data structures?",
+      "answer": "Python data structures include sets, lists, tuples, and dictionaries. \n\n- **Sets** are unordered collections with no duplicate elements, supporting operations like union and intersection (Source: data",
+      "faithfulness": 0.0,
+      "answer_relevancy": 1.0,
+      "context_precision": 0.0,
+      "context_recall": 0.0
+    },
+    {
+      "question": "What is retrieval augmented generation?",
+      "answer": "Retrieval Augmented Generation (RAG) is a general-purpose fine-tuning approach that combines a pre-trained sequence-to-sequence transformer (as parametric memory) with a dense vector index of document",
+      "faithfulness": 0.8,
+      "answer_relevancy": 1.0,
+      "context_precision": 0.6,
+      "context_recall": 0.5
+    },
+    {
+      "question": "What problem does RAG solve?",
+      "answer": "RAG solves the problem of open-domain question answering by combining the generation flexibility of closed-book approaches with the performance of retrieval-based approaches. It allows for generating ",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "context_precision": 0.0,
+      "context_recall": 0.0
+    },
+    {
+      "question": "What is the attention mechanism?",
+      "answer": "The attention mechanism is a process used in models like the Transformer, where it allows the model to focus on different parts of the input sequence when producing an output. Specifically, it compute",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "context_precision": 0.0,
+      "context_recall": 0.0
+    },
+    {
+      "question": "What does the __init__ method do in Python?",
+      "answer": "The \"__init__()\" method in Python is a special method that is automatically invoked when a class is instantiated. It allows for the initialization of a new instance of the class, often setting initial",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.0,
+      "context_precision": 0.0,
+      "context_recall": 0.0
+    },
+    {
+      "question": "How do you import a module in Python?",
+      "answer": "To import a module in Python, you can use the \"import\" statement. For example:\n\n```python\nimport fibo\n```\n\nThis imports the module named `fibo`. You can also import specific names from a module direct",
+      "faithfulness": 1.0,
+      "answer_relevancy": 1.0,
+      "context_precision": 1.0,
+      "context_recall": 1.0
+    },
+    {
+      "question": "What is a list comprehension in Python?",
+      "answer": "A list comprehension in Python is a concise way to create lists. It consists of brackets containing an expression followed by a \"for\" clause, and can include zero or more \"for\" or \"if\" clauses. The re",
+      "faithfulness": 1.0,
+      "answer_relevancy": 1.0,
+      "context_precision": 1.0,
+      "context_recall": 1.0
+    },
+    {
+      "question": "What is the for loop used for in Python?",
+      "answer": "The \"for\" loop in Python is used to iterate over the items of any sequence (such as a list or a string) in the order that they appear in the sequence. It allows you to execute a block of code for each",
+      "faithfulness": 1.0,
+      "answer_relevancy": 1.0,
+      "context_precision": 1.0,
+      "context_recall": 1.0
+    }
+  ]
+}
