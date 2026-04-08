@@ -1,0 +1,7 @@
+.dash-page { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.dash-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+.cards-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.chart-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.chart-title { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 12px; }
+@media (max-width: 900px) { .cards-row { grid-template-columns: repeat(3,1fr); } .charts-grid { grid-template-columns: 1fr; } }
