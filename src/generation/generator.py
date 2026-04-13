@@ -10,7 +10,6 @@ import sys
 import re
 sys.path.insert(0, ".")
 
-
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -29,6 +28,7 @@ def get_client() -> OpenAI:
     return OpenAI(api_key=api_key)
 
 
+@traceable(name="generate")
 def generate(messages: list[dict]) -> dict:
     """Standard generation — waits for full response."""
     client   = get_client()
@@ -52,13 +52,12 @@ def generate(messages: list[dict]) -> dict:
     }
 
 
+@traceable(name="generate_stream")
 def generate_stream(messages: list[dict]):
     """
     Streaming generation — yields tokens as they arrive.
     Used by the FastAPI SSE endpoint.
-
-    Yields strings: each token as it arrives, then a final
-    JSON-encoded metadata object prefixed with [DONE].
+    Yields each token as JSON string, then a final [DONE] metadata object.
     """
     client = get_client()
     stream = client.chat.completions.create(
@@ -69,9 +68,9 @@ def generate_stream(messages: list[dict]):
         stream      = True,
     )
 
-    full_answer    = ""
-    prompt_tokens  = 0
-    total_tokens   = 0
+    full_answer   = ""
+    prompt_tokens = 0
+    total_tokens  = 0
 
     for chunk in stream:
         delta = chunk.choices[0].delta

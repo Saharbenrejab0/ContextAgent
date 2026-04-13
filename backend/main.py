@@ -125,7 +125,12 @@ async def chat_stream(req: ChatRequest):
     agent.buffer.window = req.memory_window
     history  = agent.buffer.get()
     search_q = build_standalone_question(req.question, history)
-    chunks   = retrieve(search_q, top_k=req.top_k)
+    # Use original question for retrieval directly
+    chunks   = retrieve(
+        query          = req.question,
+        top_k          = req.top_k,
+        original_query = req.question,
+    )
     context  = format_context(chunks)
     messages = build_messages(
         question = req.question,

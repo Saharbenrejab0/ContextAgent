@@ -1,0 +1,260 @@
+{
+  "timestamp": "2026-04-13T15:40:21.197551",
+  "method": "deterministic \u2014 no LLM judge",
+  "num_questions": 15,
+  "total_tokens": 19544,
+  "keyword_coverage": 0.8533,
+  "source_accuracy": 1.0,
+  "retrieval_score": 0.5069,
+  "answer_completeness": 1.0,
+  "chunk_coverage": 1.0,
+  "avg_score": 0.872,
+  "per_question": [
+    {
+      "question": "What is a Python class?",
+      "keyword_coverage": 0.8,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.5376,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.8675,
+      "answer_snippet": "A Python class is a construct that provides a mechanism for Object Oriented Programming (OOP) in Python. Key features of",
+      "sources_cited": [
+        "classes.txt"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.4624,
+      "tokens": 1146
+    },
+    {
+      "question": "How do you define a class in Python?",
+      "keyword_coverage": 0.75,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.5482,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.8596,
+      "answer_snippet": "To define a class in Python, you use the following syntax:\n\n```python\nclass ClassName:\n    <statement-1>\n    .\n    .\n   ",
+      "sources_cited": [
+        "classes.txt"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.4518,
+      "tokens": 1030
+    },
+    {
+      "question": "What is inheritance in Python?",
+      "keyword_coverage": 0.8,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.4839,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.8568,
+      "answer_snippet": "Inheritance in Python is a feature of Object Oriented Programming that allows a class (the derived class) to inherit att",
+      "sources_cited": [
+        "classes.txt"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.5161,
+      "tokens": 1313
+    },
+    {
+      "question": "How does error handling work in Python?",
+      "keyword_coverage": 1.0,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.4665,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.8933,
+      "answer_snippet": "Error handling in Python is primarily managed through the use of exceptions. Here are the key points regarding how it wo",
+      "sources_cited": [
+        "errors.txt"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.5335,
+      "tokens": 1466
+    },
+    {
+      "question": "What is the difference between a syntax error and an exception?",
+      "keyword_coverage": 0.75,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.471,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.8442,
+      "answer_snippet": "1. **Syntax Errors**:\n   - Also known as parsing errors.\n   - Occur when the code does not conform to the syntax rules o",
+      "sources_cited": [
+        "errors.txt"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.529,
+      "tokens": 1031
+    },
+    {
+      "question": "How do Python modules work?",
+      "keyword_coverage": 1.0,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.5269,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.9054,
+      "answer_snippet": "Python modules work as follows:\n\n1. **Definition**: A module is a file containing Python definitions and statements. The",
+      "sources_cited": [
+        "modules.txt"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.4731,
+      "tokens": 1388
+    },
+    {
+      "question": "What is a Python package?",
+      "keyword_coverage": 1.0,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.4806,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.8961,
+      "answer_snippet": "A Python package is a way of structuring Python's module namespace using \"dotted module names.\" For example, the module ",
+      "sources_cited": [
+        "modules.txt",
+        "classes.txt"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.5194,
+      "tokens": 1128
+    },
+    {
+      "question": "What are Python data structures?",
+      "keyword_coverage": 1.0,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.5204,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.9041,
+      "answer_snippet": "Python data structures include:\n\n1. **Sets**: \n   - An unordered collection with no duplicate elements.\n   - Basic uses ",
+      "sources_cited": [
+        "datastructures.txt",
+        "classes.txt"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.4796,
+      "tokens": 1343
+    },
+    {
+      "question": "What is retrieval augmented generation?",
+      "keyword_coverage": 0.8,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.5661,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.8732,
+      "answer_snippet": "Retrieval-Augmented Generation (RAG) is a general-purpose fine-tuning approach that combines a pre-trained retrieval mod",
+      "sources_cited": [
+        "rag_paper.pdf"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.4339,
+      "tokens": 1351
+    },
+    {
+      "question": "What problem does RAG solve?",
+      "keyword_coverage": 0.8,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.5616,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.8723,
+      "answer_snippet": "RAG (Retrieval-Augmented Generation) addresses the challenge of open-domain question answering by combining the strength",
+      "sources_cited": [
+        "rag_paper.pdf"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.4384,
+      "tokens": 1388
+    },
+    {
+      "question": "What is the attention mechanism?",
+      "keyword_coverage": 0.8,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.4469,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.8494,
+      "answer_snippet": "The attention mechanism is a method used in neural networks, particularly in the context of sequence-to-sequence models.",
+      "sources_cited": [
+        "attention_paper.pdf"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.5531,
+      "tokens": 1745
+    },
+    {
+      "question": "What does the __init__ method do in Python?",
+      "keyword_coverage": 0.75,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.432,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.8364,
+      "answer_snippet": "The \"__init__()\" method in Python is a special method that is defined within a class to initialize a newly created insta",
+      "sources_cited": [
+        "modules.txt",
+        "classes.txt",
+        "introduction.txt"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.568,
+      "tokens": 1173
+    },
+    {
+      "question": "How do you import a module in Python?",
+      "keyword_coverage": 0.75,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.5184,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.8537,
+      "answer_snippet": "To import a module in Python, you can use the following methods:\n\n1. **Basic Import**:\n   - Use the `import` statement t",
+      "sources_cited": [
+        "modules.txt"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.4816,
+      "tokens": 1373
+    },
+    {
+      "question": "What is a list comprehension in Python?",
+      "keyword_coverage": 0.8,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.5437,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.8687,
+      "answer_snippet": "A list comprehension in Python is a concise way to create lists. It consists of brackets containing an expression follow",
+      "sources_cited": [
+        "datastructures.txt"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.4563,
+      "tokens": 1470
+    },
+    {
+      "question": "What is the for loop used for in Python?",
+      "keyword_coverage": 1.0,
+      "source_accuracy": 1.0,
+      "retrieval_score": 0.4999,
+      "answer_completeness": 1.0,
+      "chunk_coverage": 1.0,
+      "composite": 0.9,
+      "answer_snippet": "The \"for\" loop in Python is used to iterate over the items of any sequence (such as a list or a string) in the order tha",
+      "sources_cited": [
+        "controlflow.txt",
+        "introduction.txt",
+        "classes.txt"
+      ],
+      "chunks_found": 5,
+      "avg_distance": 0.5001,
+      "tokens": 1199
+    }
+  ]
+}
