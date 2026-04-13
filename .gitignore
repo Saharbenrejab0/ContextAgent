@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 .venv/
 chroma_db/
+data/
 *.pdf
 *.log
 .DS_Store
+results/
