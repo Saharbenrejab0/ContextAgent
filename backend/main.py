@@ -1,14 +1,11 @@
 """
 ContextAgent — FastAPI Backend v2.1
-SQLite memory persistence added.
-All routes defined AFTER app = FastAPI().
+SQLite memory persistence. All routes after app = FastAPI().
 """
 
 import sys, time, uuid, json, os
-from pathlib import Path
 from typing import Optional
 from collections import defaultdict
-
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -24,16 +21,15 @@ from src.storage.vector_store import (
     save_chunks, reset_collection, get_collection_count
 )
 from src.memory.database import (
-    init_db,
-    create_session,
-    save_message,
-    get_session_messages,
-    get_all_sessions,
-    delete_session,
+    init_db, create_session, save_message,
+    get_session_messages, get_all_sessions, delete_session
 )
 
 # ── App ──────────────────────────────────────────────────────────
 app = FastAPI(title="ContextAgent API", version="2.1.0")
+
+init_db()
+print("✅ SQLite memory database initialised.")
 
 app.add_middleware(
     CORSMiddleware,
@@ -42,21 +38,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Startup ──────────────────────────────────────────────────────
-@app.on_event("startup")
-def on_startup():
-    init_db()
-    print("✅ SQLite memory database initialised.")
-
 # ── In-memory session store ──────────────────────────────────────
 sessions: dict[str, Orchestrator] = {}
-session_stats: dict[str, dict] = defaultdict(lambda: {
+session_stats: dict[str, dict]    = defaultdict(lambda: {
     "total_tokens": 0,
     "total_cost":   0.0,
     "turns":        0,
     "latencies":    [],
     "distances":    [],
-    "token_history": [],
+    "token_history":[],
 })
 
 # ── Schemas ──────────────────────────────────────────────────────
@@ -74,7 +64,7 @@ class EvalRequest(BaseModel):
     questions: list[str]
 
 # ── Helpers ──────────────────────────────────────────────────────
-def get_or_create_orchestrator(session_id: str, top_k: int = 5) -> Orchestrator:
+def get_or_create_session(session_id: str, top_k: int = 5) -> Orchestrator:
     if session_id not in sessions:
         sessions[session_id] = Orchestrator(top_k=top_k, verbose=False)
     return sessions[session_id]
@@ -83,105 +73,110 @@ def compute_cost(tokens: int) -> float:
     return round((tokens / 1_000_000) * 0.15, 6)
 
 # ════════════════════════════════════════════════════════════════
-# ROUTES
+# ROUTES — all defined after app = FastAPI()
 # ════════════════════════════════════════════════════════════════
 
-# ── Health ───────────────────────────────────────────────────────
 @app.get("/api/health")
 def health():
     return {"status": "ok", "chunks": get_collection_count()}
 
 
-# ── Chat (non-streaming) ─────────────────────────────────────────
 @app.post("/api/chat")
 def chat(req: ChatRequest):
     if get_collection_count() == 0:
         raise HTTPException(400, "No documents ingested. Run ingestion first.")
 
-    orch = get_or_create_orchestrator(req.session_id, req.top_k)
-    t0   = time.time()
+    agent = get_or_create_session(req.session_id, req.top_k)
+    agent.buffer.window = req.memory_window
 
-    result  = orch.run(req.question)
-    latency = round(time.time() - t0, 2)
-    tokens  = result.get("tokens_used", 0)
-    cost    = compute_cost(tokens)
+    t0     = time.time()
+    result = agent.ask(req.question)
+    lat    = round(time.time() - t0, 2)
 
-    # Update in-memory stats
-    s = session_stats[req.session_id]
-    s["total_tokens"]  += tokens
-    s["total_cost"]    += cost
-    s["turns"]         += 1
-    s["latencies"].append(latency)
-    s["token_history"].append({"turn": s["turns"], "tokens": tokens})
-    s["distances"].extend([c.get("distance", 0) for c in result.get("chunks", [])])
+    tokens = result["tokens"]["total"]
+    cost   = compute_cost(tokens)
+    stats  = session_stats[req.session_id]
 
-    # Persist to SQLite
+    stats["total_tokens"] += tokens
+    stats["total_cost"]   += cost
+    stats["turns"]        += 1
+    stats["latencies"].append(lat)
+    stats["token_history"].append(tokens)
+    for c in result.get("chunks", []):
+        stats["distances"].append(c["distance"])
+
     create_session(req.session_id)
     save_message(req.session_id, "user",      req.question)
-    save_message(req.session_id, "assistant", result.get("answer", ""), tokens=tokens)
+    save_message(req.session_id, "assistant", result["answer"], tokens=tokens)
 
     return {
-        "answer":     result.get("answer", ""),
-        "chunks":     result.get("chunks", []),
-        "tokens":     tokens,
-        "cost":       cost,
-        "latency":    latency,
-        "session_id": req.session_id,
+        "answer":   result["answer"],
+        "sources":  result["sources"],
+        "chunks":   result.get("chunks", []),
+        "tokens":   result["tokens"],
+        "model":    result["model"],
+        "latency":  lat,
+        "cost":     cost,
     }
 
 
-# ── Chat (streaming) ─────────────────────────────────────────────
 @app.post("/api/chat/stream")
-def chat_stream(req: ChatRequest):
+async def chat_stream(req: ChatRequest):
     if get_collection_count() == 0:
-        raise HTTPException(400, "No documents ingested. Run ingestion first.")
+        raise HTTPException(400, "No documents ingested.")
 
-    orch = get_or_create_orchestrator(req.session_id, req.top_k)
+    from src.retrieval.retriever  import retrieve, format_context
+    from src.generation.prompt    import build_messages, build_standalone_question
+    from src.generation.generator import generate_stream
 
-    def event_generator():
-        t0          = time.time()
-        full_answer = []
-
-        try:
-            # Phase 1 — retrieval
-            retrieval_result = orch.retrieve(req.question)
-            chunks = retrieval_result.get("chunks", [])
-            yield f"data: {json.dumps({'type': 'chunks', 'chunks': chunks})}\n\n"
-
-            # Phase 2 — stream tokens
-            for token in orch.stream_generate(req.question, chunks):
-                full_answer.append(token)
-                yield f"data: {json.dumps({'type': 'token', 'token': token})}\n\n"
-
-            answer  = "".join(full_answer)
-            latency = round(time.time() - t0, 2)
-            tokens  = orch.last_token_count()
-            cost    = compute_cost(tokens)
-
-            # Update in-memory stats
-            s = session_stats[req.session_id]
-            s["total_tokens"]  += tokens
-            s["total_cost"]    += cost
-            s["turns"]         += 1
-            s["latencies"].append(latency)
-            s["token_history"].append({"turn": s["turns"], "tokens": tokens})
-            s["distances"].extend([c.get("distance", 0) for c in chunks])
-
-            # Persist to SQLite
-            create_session(req.session_id)
-            save_message(req.session_id, "user",      req.question)
-            save_message(req.session_id, "assistant", answer, tokens=tokens)
-
-            yield f"data: {json.dumps({'type': 'done', 'tokens': tokens, 'cost': cost, 'latency': latency})}\n\n"
-
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    agent    = get_or_create_session(req.session_id, req.top_k)
+    agent.buffer.window = req.memory_window
+    history  = agent.buffer.get()
+    search_q = build_standalone_question(req.question, history)
+    chunks   = retrieve(
+        query          = req.question,
+        top_k          = req.top_k,
+        original_query = req.question,
     )
+    context  = format_context(chunks)
+    messages = build_messages(
+        question = req.question,
+        context  = context,
+        history  = history if history else None,
+    )
+
+    def event_stream():
+        full = ""
+        for token in generate_stream(messages):
+            if token.startswith("[DONE]"):
+                meta   = json.loads(token[6:])
+                tokens = meta["tokens"]["total"]
+                cost   = compute_cost(tokens)
+
+                agent.buffer.add(req.question, full)
+
+                create_session(req.session_id)
+                save_message(req.session_id, "user", req.question)
+                save_message(req.session_id, "assistant", full,
+                             sources=meta.get("sources", []),
+                             tokens=tokens)
+
+                stats = session_stats[req.session_id]
+                stats["total_tokens"] += tokens
+                stats["total_cost"]   += cost
+                stats["turns"]        += 1
+                stats["token_history"].append(tokens)
+                for c in chunks:
+                    stats["distances"].append(c["distance"])
+
+                meta["chunks"] = chunks
+                meta["cost"]   = cost
+                yield f"data: [DONE]{json.dumps(meta)}\n\n"
+            else:
+                full += token
+                yield f"data: {json.dumps(token)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 # ── SQLite Session Routes ────────────────────────────────────────
@@ -190,12 +185,14 @@ def chat_stream(req: ChatRequest):
 def list_all_sessions():
     return {"sessions": get_all_sessions()}
 
+@app.post("/api/sessions/{session_id}")
+def create_new_session(session_id: str):
+    return create_session(session_id)
 
-@app.get("/api/sessions/{session_id}/history")
-def get_history(session_id: str):
-    history = get_session_messages(session_id)
-    return {"session_id": session_id, "history": history}
-
+@app.get("/api/sessions/{session_id}/messages")
+def get_messages(session_id: str):
+    msgs = get_session_messages(session_id, limit=100)
+    return {"messages": msgs}
 
 @app.delete("/api/sessions/{session_id}")
 def remove_session(session_id: str):
@@ -204,20 +201,23 @@ def remove_session(session_id: str):
         del sessions[session_id]
     if session_id in session_stats:
         del session_stats[session_id]
-    return {"success": True, "session_id": session_id}
+    return {"success": True}
 
 
 # ── Documents ────────────────────────────────────────────────────
+
 @app.get("/api/documents")
 def list_documents():
-    docs_dir = Path("docs")
-    files    = []
-    if docs_dir.exists():
-        for f in docs_dir.iterdir():
-            if f.suffix.lower() in {".pdf", ".txt", ".md"}:
+    from pathlib import Path
+    docs_path = Path("docs/")
+    supported = {".pdf", ".txt", ".md"}
+    files = []
+    if docs_path.exists():
+        for f in sorted(docs_path.iterdir()):
+            if f.suffix.lower() in supported:
                 files.append({
                     "name":    f.name,
-                    "type":    f.suffix.lstrip(".").upper(),
+                    "type":    f.suffix.lower().replace(".", ""),
                     "size_kb": round(f.stat().st_size / 1024, 1),
                     "path":    str(f),
                 })
@@ -227,6 +227,8 @@ def list_documents():
 @app.post("/api/ingest")
 async def ingest_document(file: UploadFile = File(...)):
     import shutil
+    from pathlib import Path
+
     allowed = {".pdf", ".txt", ".md"}
     ext     = Path(file.filename).suffix.lower()
     if ext not in allowed:
@@ -265,25 +267,26 @@ def reingest_all():
 
 
 # ── Reset ────────────────────────────────────────────────────────
+
 @app.post("/api/reset")
 def reset_chat(req: ResetRequest):
-    """Clears in-memory context. Keeps SQLite history intact."""
     if req.session_id in sessions:
         sessions[req.session_id].reset()
     session_stats[req.session_id] = {
-        "total_tokens": 0,
-        "total_cost":   0.0,
-        "turns":        0,
-        "latencies":    [],
-        "distances":    [],
-        "token_history": [],
+        "total_tokens": 0, "total_cost": 0.0, "turns": 0,
+        "latencies": [], "distances": [], "token_history": [],
     }
     return {"success": True}
 
 
 # ── Stats ────────────────────────────────────────────────────────
+
 @app.get("/api/stats/{session_id}")
 def get_stats(session_id: str):
+    try:
+        total_chunks = get_collection_count()
+    except Exception:
+        total_chunks = 0
     s    = session_stats[session_id]
     lats = s["latencies"]
     dsts = s["distances"]
@@ -291,31 +294,31 @@ def get_stats(session_id: str):
         "total_tokens":  s["total_tokens"],
         "total_cost":    round(s["total_cost"], 6),
         "turns":         s["turns"],
-        "avg_latency":   round(sum(lats) / len(lats), 2) if lats else 0,
-        "avg_distance":  round(sum(dsts) / len(dsts), 4) if dsts else 0,
+        "avg_latency":   round(sum(lats)/len(lats), 2) if lats else 0,
+        "avg_distance":  round(sum(dsts)/len(dsts), 4) if dsts else 0,
         "token_history": s["token_history"],
-        "distances":     dsts,
+        "distance_hist": dsts,
+        "total_chunks":  total_chunks,
     }
 
 
 # ── Evaluation ───────────────────────────────────────────────────
+
 @app.post("/api/evaluate")
 def evaluate(req: EvalRequest):
-    if get_collection_count() == 0:
-        raise HTTPException(400, "No documents ingested.")
-
-    orch    = Orchestrator(top_k=5, verbose=False)
+    from src.retrieval.retriever import retrieve
     results = []
-
     for q in req.questions:
         t0     = time.time()
-        result = orch.run(q)
+        chunks = retrieve(q, top_k=5)
+        lat    = round(time.time() - t0, 3)
         results.append({
-            "question": q,
-            "answer":   result.get("answer", ""),
-            "chunks":   len(result.get("chunks", [])),
-            "latency":  round(time.time() - t0, 2),
-            "tokens":   result.get("tokens_used", 0),
+            "question":     q,
+            "chunks_found": len(chunks),
+            "avg_distance": round(
+                sum(c["distance"] for c in chunks) / len(chunks), 4
+            ) if chunks else 1.0,
+            "sources":  list(set(c["source"] for c in chunks)),
+            "latency":  lat,
         })
-
-    return {"results": results, "total": len(results)}
+    return {"results": results}
