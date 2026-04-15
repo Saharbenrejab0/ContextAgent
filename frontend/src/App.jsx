@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { BrowserRouter, Routes, Route, NavLink, useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import Chat from './pages/Chat'
 import Dashboard from './pages/Dashboard'
 import Documents from './pages/Documents'
@@ -22,7 +22,7 @@ function NavIcon({ type }) {
   return null
 }
 
-function NavBar() {
+function NavBar({ theme, setTheme }) {
   return (
     <nav className="navbar">
       <div className="nav-logo">
@@ -37,21 +37,68 @@ function NavBar() {
           <span className="nav-tooltip">{n.label}</span>
         </NavLink>
       ))}
+      <div style={{ flex: 1 }}/>
+      <button className="theme-toggle" onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} title="Toggle theme">
+        {theme === 'dark' ? '☀️' : '🌙'}
+      </button>
     </nav>
   )
 }
 
 export default function App() {
-  const [sessionId] = useState(() => 'sess_' + Math.random().toString(36).slice(2))
-  const [settings, setSettings] = useState({ topK: 5, temperature: 0.1, memoryWindow: 6 })
+  const [sessionId, setSessionId] = useState(() => 'sess_' + Math.random().toString(36).slice(2))
+  const [settings, setSettings]   = useState({ topK: 5, temperature: 0.1, memoryWindow: 6 })
   const [debugMode, setDebugMode] = useState(true)
+  const [theme, setTheme]         = useState('dark')
+  const [sessions, setSessions]   = useState([])
+  const [messages, setMessages]   = useState([])
 
-  const ctx = { sessionId, settings, setSettings, debugMode, setDebugMode }
+  // apply theme to root
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
+
+  // load session list on mount
+  useEffect(() => {
+    fetch('/api/sessions')
+      .then(r => r.json())
+      .then(d => setSessions(d.sessions || []))
+  }, [])
+
+  const refreshSessions = () => {
+    fetch('/api/sessions')
+      .then(r => r.json())
+      .then(d => setSessions(d.sessions || []))
+  }
+
+  const loadSession = async (sid) => {
+    const res  = await fetch(`/api/sessions/${sid}/messages`)
+    const data = await res.json()
+    const msgs = (data.messages || []).map(m => ({
+      role:    m.role,
+      content: m.content,
+      sources: m.sources ? m.sources.split(',').filter(Boolean) : [],
+      tokens:  m.tokens || 0,
+      latency: 0,
+    }))
+    setSessionId(sid)
+    setMessages(msgs)
+  }
+
+  const ctx = {
+    sessionId, setSessionId,
+    settings, setSettings,
+    debugMode, setDebugMode,
+    theme,
+    sessions, refreshSessions,
+    loadSession,
+    messages, setMessages,
+  }
 
   return (
     <BrowserRouter>
-      <div style={{ display: 'flex', height: '100vh', width: '100%' }}>
-        <NavBar/>
+      <div className={'app-root ' + theme} style={{ display: 'flex', height: '100vh', width: '100%' }}>
+        <NavBar theme={theme} setTheme={setTheme}/>
         <Sidebar ctx={ctx}/>
         <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <Routes>

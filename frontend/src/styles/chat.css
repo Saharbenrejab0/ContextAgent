@@ -54,3 +54,23 @@
 .chunk-bar-fill.hi { background: var(--teal); }
 .chunk-bar-fill.md { background: var(--amber); }
 .chunk-bar-fill.lo { background: var(--red); }
+
+/* Copy button */
+.copy-btn {
+  font-size: 12px; padding: 2px 7px; border-radius: 6px;
+  border: 1px solid var(--border2); background: transparent;
+  color: var(--text3); cursor: pointer; transition: all 0.15s;
+  margin-left: auto;
+}
+.copy-btn:hover { background: var(--bg3); color: var(--text2); }
+
+/* Searching indicator */
+.searching-indicator {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text3); font-style: italic;
+}
+.searching-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--purple2); flex-shrink: 0;
+  animation: blink 1s infinite;
+}

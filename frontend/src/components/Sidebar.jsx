@@ -3,9 +3,9 @@ import axios from 'axios'
 import '../styles/sidebar.css'
 
 export default function Sidebar({ ctx }) {
-  const [docs, setDocs]       = useState([])
-  const [chunks, setChunks]   = useState(0)
-  const [stats, setStats]     = useState(null)
+  const [docs, setDocs]     = useState([])
+  const [chunks, setChunks] = useState(0)
+  const [stats, setStats]   = useState(null)
 
   useEffect(() => {
     axios.get('/api/documents').then(r => {
@@ -23,22 +23,64 @@ export default function Sidebar({ ctx }) {
   }, [ctx.sessionId])
 
   const badge = ext => {
-    if (ext === 'pdf') return <span className="badge badge-pdf">PDF</span>
-    if (ext === 'md')  return <span className="badge badge-md">MD</span>
+    const e = (ext || '').toLowerCase()
+    if (e === 'pdf') return <span className="badge badge-pdf">PDF</span>
+    if (e === 'md')  return <span className="badge badge-md">MD</span>
     return <span className="badge badge-txt">TXT</span>
+  }
+
+  const formatTime = iso => {
+    const d = new Date(iso)
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) +
+           ' · ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const handleSessionClick = async (sid) => {
+    await ctx.loadSession(sid)
+  }
+
+  const handleNewChat = () => {
+    const newId = 'sess_' + Math.random().toString(36).slice(2)
+    ctx.setSessionId(newId)
+    ctx.setMessages([])
+    setTimeout(ctx.refreshSessions, 500)
   }
 
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-brand">ContextAgent</div>
-        <div className="sidebar-sub">Document assistant · v1</div>
+        <div className="sidebar-sub">Document assistant · v2</div>
         <div className={'status-row ' + (chunks > 0 ? 'ready' : 'empty')}>
           <span className="status-dot"/>
           <span>{chunks > 0 ? `${chunks} chunks ready` : 'No chunks indexed'}</span>
         </div>
       </div>
 
+      {/* Session History */}
+      <div className="sidebar-section" style={{ flex: 1, overflowY: 'auto', borderBottom: '1px solid var(--border)' }}>
+        <div className="sec-label-row">
+          <span className="sec-label">Conversations</span>
+          <button className="new-chat-btn" onClick={handleNewChat}>+ New</button>
+        </div>
+        <div className="session-list">
+          {ctx.sessions.length === 0 && (
+            <div className="session-empty">No conversations yet</div>
+          )}
+          {ctx.sessions.map(s => (
+            <div
+              key={s.id}
+              className={'session-item' + (s.id === ctx.sessionId ? ' active' : '')}
+              onClick={() => handleSessionClick(s.id)}
+            >
+              <div className="session-title">{s.title || 'Conversation'}</div>
+              <div className="session-time">{formatTime(s.updated_at)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Documents */}
       <div className="sidebar-section">
         <div className="sec-label">Documents</div>
         <div className="doc-list">
@@ -54,6 +96,7 @@ export default function Sidebar({ ctx }) {
         </div>
       </div>
 
+      {/* Stats */}
       <div className="sidebar-section">
         <div className="sec-label">Session</div>
         <div className="stats-grid">
@@ -64,6 +107,7 @@ export default function Sidebar({ ctx }) {
         </div>
       </div>
 
+      {/* Settings */}
       <div className="sidebar-section">
         <div className="sec-label">Settings</div>
         <div className="slider-group">

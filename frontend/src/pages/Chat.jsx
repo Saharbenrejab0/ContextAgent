@@ -28,12 +28,34 @@ function ChunkPanel({ chunks }) {
   )
 }
 
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <button className="copy-btn" onClick={copy} title="Copy answer">
+      {copied ? '✓' : '⎘'}
+    </button>
+  )
+}
+
 export default function Chat({ ctx }) {
-  const [messages,  setMessages]  = useState([])
-  const [input,     setInput]     = useState('')
-  const [loading,   setLoading]   = useState(false)
-  const [lastChunks,setChunks]    = useState([])
+  const [messages,    setMessages]  = useState([])
+  const [input,       setInput]     = useState('')
+  const [loading,     setLoading]   = useState(false)
+  const [lastChunks,  setChunks]    = useState([])
+  const [searchingIn, setSearchingIn] = useState('')
   const bottomRef = useRef(null)
+
+  // sync messages from ctx when a past session is loaded
+  useEffect(() => {
+    if (ctx.messages && ctx.messages.length > 0) {
+      setMessages(ctx.messages)
+    }
+  }, [ctx.messages])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -46,6 +68,7 @@ export default function Chat({ ctx }) {
     setInput('')
     setMessages(m => [...m, { role: 'user', content: q }])
     setLoading(true)
+    setSearchingIn('Searching documents...')
 
     try {
       const res = await fetch('/api/chat/stream', {
@@ -64,6 +87,7 @@ export default function Chat({ ctx }) {
         const err = await res.json()
         setMessages(m => [...m, { role: 'error', content: err.detail || 'API error' }])
         setLoading(false)
+        setSearchingIn('')
         return
       }
 
@@ -101,13 +125,20 @@ export default function Chat({ ctx }) {
                   ? { ...msg, sources: meta.sources || [], tokens: meta.tokens?.total || 0, latency }
                   : msg
               ))
-              if (meta.chunks) setChunks(meta.chunks)
+              if (meta.chunks) {
+                setChunks(meta.chunks)
+                const srcs = [...new Set(meta.chunks.map(c => c.source))].join(', ')
+                setSearchingIn('Found in: ' + srcs)
+                setTimeout(() => setSearchingIn(''), 3000)
+              }
             } catch(e) {
               console.error('Failed to parse DONE metadata:', e)
             }
+            setSearchingIn('')
           } else {
             try {
               const token = JSON.parse(data)
+              setSearchingIn('')
               setMessages(m => m.map((msg, i) =>
                 i === msgIdx ? { ...msg, content: msg.content + token } : msg
               ))
@@ -121,9 +152,11 @@ export default function Chat({ ctx }) {
       }
     } catch (e) {
       setMessages(m => [...m, { role: 'error', content: 'Stream error: ' + e.message }])
+      setSearchingIn('')
     }
 
     setLoading(false)
+    ctx.refreshSessions()
   }
 
   const reset = async () => {
@@ -134,6 +167,22 @@ export default function Chat({ ctx }) {
     })
     setMessages([])
     setChunks([])
+    setSearchingIn('')
+  }
+
+  const exportConversation = () => {
+    const lines = messages.map(m => {
+      const role = m.role === 'user' ? '**You**' : '**ContextAgent**'
+      return `${role}\n\n${m.content}\n`
+    })
+    const md   = `# ContextAgent Conversation\n\n${lines.join('\n---\n\n')}`
+    const blob = new Blob([md], { type: 'text/markdown' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `conversation-${ctx.sessionId}.md`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -141,6 +190,11 @@ export default function Chat({ ctx }) {
       <div className="topbar">
         <span className="topbar-title">Chat</span>
         <div className="topbar-right">
+          {messages.length > 0 && (
+            <button className="tbtn" onClick={exportConversation} title="Export conversation">
+              Export ↓
+            </button>
+          )}
           <button
             className={'tbtn' + (ctx.debugMode ? ' on' : '')}
             onClick={() => ctx.setDebugMode(d => !d)}
@@ -177,27 +231,38 @@ export default function Chat({ ctx }) {
                     }
                   </div>
 
-                  {m.role === 'assistant' && m.tokens > 0 && (
+                  {m.role === 'assistant' && m.content && (
                     <div className="msg-meta">
                       {m.sources?.map(s => (
                         <span key={s} className="chip">{s}</span>
                       ))}
-                      <span className="meta-txt">
-                        {m.tokens} tokens · {m.latency}s
-                      </span>
+                      {m.tokens > 0 && (
+                        <span className="meta-txt">
+                          {m.tokens} tokens · {m.latency}s
+                        </span>
+                      )}
+                      <CopyButton text={m.content}/>
                     </div>
                   )}
                 </div>
               </div>
             ))}
 
-            {loading && messages[messages.length - 1]?.role !== 'assistant' && (
+            {/* Streaming indicator */}
+            {loading && searchingIn && (
+              <div className="msg-row assistant">
+                <div className="avatar av-a">CA</div>
+                <div className="bubble bubble-assistant searching-indicator">
+                  <span className="searching-dot"/>{searchingIn}
+                </div>
+              </div>
+            )}
+
+            {loading && messages[messages.length - 1]?.role !== 'assistant' && !searchingIn && (
               <div className="msg-row assistant">
                 <div className="avatar av-a">CA</div>
                 <div className="bubble bubble-assistant">
-                  <div className="typing">
-                    <span/><span/><span/>
-                  </div>
+                  <div className="typing"><span/><span/><span/></div>
                 </div>
               </div>
             )}
@@ -217,13 +282,7 @@ export default function Chat({ ctx }) {
             </div>
             <button className="send-btn" onClick={send} disabled={loading}>
               <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                <path
-                  d="M2 7.5h11M8 2.5l5 5-5 5"
-                  stroke="white"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
+                <path d="M2 7.5h11M8 2.5l5 5-5 5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
           </div>
