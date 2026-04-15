@@ -1,4 +1,4 @@
-# ContextAgent
+# Production RAG assistant with hybrid retrieval, streaming, and conversation memory
 
 A production-grade RAG (Retrieval-Augmented Generation) system that lets you ask natural language questions over your own documents and receive precise, cited answers.
 
